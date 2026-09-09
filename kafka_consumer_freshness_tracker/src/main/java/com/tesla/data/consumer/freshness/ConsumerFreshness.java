@@ -152,12 +152,17 @@ public class ConsumerFreshness {
               }
               return new AbstractMap.SimpleEntry<>((String) clusterConf.get("name"), queue);
             }).collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
+    loadMetricsClusterLabels(conf);
+
+    this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
+  }
+
+  @VisibleForTesting
+  void loadMetricsClusterLabels(Map<String, Object> conf) {
     this.metricsClusterByBurrowName = ((List<Map<String, Object>>) conf.get("clusters")).stream()
         .collect(Collectors.toMap(
             clusterConf -> (String) clusterConf.get("name"),
             this::metricsCluster));
-
-    this.executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(workerThreadCount));
   }
 
   /**
@@ -189,7 +194,7 @@ public class ConsumerFreshness {
     try {
       bootstrapServersFromBurrow = new HashSet<>(this.burrow.getClusterBootstrapServers(clusterName));
     } catch (IOException e) {
-      this.metrics.burrowClusterDetailReadFailed.labels(clusterName).inc();
+      this.metrics.burrowClusterDetailReadFailed.labels(metricsCluster(clusterConf)).inc();
       return Optional.of("failed to read cluster detail from Burrow: " + e.getMessage());
     }
 
@@ -226,16 +231,9 @@ public class ConsumerFreshness {
 
   void setupForTesting(Burrow burrow, Map<String, ArrayBlockingQueue<KafkaConsumer>> workers,
       ListeningExecutorService executor) {
-    setupForTesting(burrow, workers, executor, Collections.emptyMap());
-  }
-
-  void setupForTesting(Burrow burrow, Map<String, ArrayBlockingQueue<KafkaConsumer>> workers,
-      ListeningExecutorService executor, Map<String, String> metricsClusterByBurrowName) {
     this.burrow = burrow;
     this.availableWorkers = workers;
     this.executor = executor;
-    this.metricsClusterByBurrowName = metricsClusterByBurrowName == null
-        ? Collections.emptyMap() : metricsClusterByBurrowName;
   }
 
   @VisibleForTesting
