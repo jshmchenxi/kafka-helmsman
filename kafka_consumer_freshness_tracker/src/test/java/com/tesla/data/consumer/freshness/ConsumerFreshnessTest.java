@@ -399,6 +399,49 @@ public class ConsumerFreshnessTest {
     freshness.setupWithBurrow(globalConf, burrow);
   }
 
+  @Test
+  public void testMetricsClusterOverridesFreshnessClusterLabel() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String burrowName = "remote-burrow";
+    String metricsCluster = "local-cluster";
+    Burrow.ClusterClient client = mockClusterState(burrowName, "group1",
+        partitionState("topic1", 1, 10, 0));
+    when(burrow.getClusters()).thenReturn(newArrayList(client));
+
+    withExecutor(executor -> {
+      KafkaConsumer consumer = mock(KafkaConsumer.class);
+      ConsumerFreshness freshness = new ConsumerFreshness();
+      freshness.setupForTesting(burrow, workers(burrowName, consumer), executor,
+          ImmutableMap.of(burrowName, metricsCluster));
+      freshness.run();
+
+      FreshnessMetrics metrics = freshness.getMetricsForTesting();
+      assertEquals("Freshness metrics use metricsClusterLabel, not the Burrow cluster name", 0,
+          metrics.freshness.labels(metricsCluster, "group1", "topic1", "1").get(), 0.0);
+      assertSuccessfulClusterMeasurement(freshness, metricsCluster);
+      try {
+        verifyNoInteractions(consumer);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    });
+  }
+
+  @Test
+  public void testValidateClusterConfUsesNameForBurrow() throws Exception {
+    Burrow burrow = mock(Burrow.class);
+    String burrowName = "remote-burrow";
+    when(burrow.getClusterBootstrapServers(burrowName))
+        .thenReturn(Arrays.asList("kafka.example.com:9092"));
+
+    Map<String, Object> conf = mockConfForCluster(burrowName, "kafka.example.com:9092");
+    conf.put("metricsClusterLabel", "local-cluster");
+
+    ConsumerFreshness freshness = new ConsumerFreshness();
+    freshness.burrow = burrow;
+    Assert.assertFalse(freshness.validateClusterConf(conf).isPresent());
+  }
+
   Map<String, Object> mockConfForCluster(String name, String... bootstrapServers) {
     Map<String, Object> clusterConf = new HashMap<>();
     Map<String, Object> kafkaConf = new HashMap<>();

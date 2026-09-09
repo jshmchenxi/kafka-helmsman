@@ -85,6 +85,9 @@ clusters:
 The Kafka configs are passed directly to the consumer, so you can add any standard
 [Kafka consumers configs](https://kafka.apache.org/documentation/#newconsumerconfigs) as needed.
 
+`clusters[].name` is the Burrow cluster (`/v3/kafka/{name}`). Optional `metricsClusterLabel` overrides the Prometheus
+`cluster` label. If omitted, metrics use `name`.
+
 ### Additional Options
 
  * `port`
@@ -108,6 +111,16 @@ The Kafka configs are passed directly to the consumer, so you can add any standa
     * **Default: 15**
       * For smaller clusters or multiple clusters, you will want to adjust this to manage memory allocation (each
       consumer takes a non-trivial chunk of memory, which can add up when monitoring multiple clusters).
+ * `metricsClusterLabel`
+    * Prometheus `cluster` label for this cluster. Use when the Burrow API name should not appear in metrics.
+    * **Default: `name`**
+    ```yaml
+    clusters:
+      - name: remote-burrow
+        metricsClusterLabel: local-cluster
+        kafka:
+          bootstrap.servers: "kafka.example.com:9092"
+    ```
 
 ## Design
 
