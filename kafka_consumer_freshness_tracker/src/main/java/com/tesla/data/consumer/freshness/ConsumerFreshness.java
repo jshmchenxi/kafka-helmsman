@@ -150,7 +150,7 @@ public class ConsumerFreshness {
               for (int i = 0; i < numConsumers; i++) {
                 queue.add(createConsumer(clusterConf));
               }
-              return new AbstractMap.SimpleEntry<>((String) clusterConf.get("name"), queue);
+              return new AbstractMap.SimpleEntry<>(burrowCluster(clusterConf), queue);
             }).collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
     loadMetricsClusterLabels(conf);
 
@@ -161,18 +161,22 @@ public class ConsumerFreshness {
   void loadMetricsClusterLabels(Map<String, Object> conf) {
     this.metricsClusterByBurrowName = ((List<Map<String, Object>>) conf.get("clusters")).stream()
         .collect(Collectors.toMap(
-            clusterConf -> (String) clusterConf.get("name"),
-            this::metricsCluster));
+            this::burrowCluster,
+            clusterConf -> (String) clusterConf.get("name")));
   }
 
   /**
-   * Prometheus {@code cluster} label. Defaults to the Burrow cluster {@code name}.
+   * Burrow API cluster ({@code /v3/kafka/{name}}). Defaults to {@code clusters[].name}.
    */
-  private String metricsCluster(Map<String, Object> clusterConf) {
-    Object override = clusterConf.get("metricsClusterLabel");
+  private String burrowCluster(Map<String, Object> clusterConf) {
+    Object override = clusterConf.get("burrowClusterName");
     if (override instanceof String && !((String) override).isEmpty()) {
       return (String) override;
     }
+    return (String) clusterConf.get("name");
+  }
+
+  private String metricsCluster(Map<String, Object> clusterConf) {
     return (String) clusterConf.get("name");
   }
 
@@ -189,10 +193,10 @@ public class ConsumerFreshness {
    * @return a message describing the validation failure, if the config was invalid. Empty otherwise.
    */
   Optional<String> validateClusterConf(Map<String, Object> clusterConf) {
-    final String clusterName = (String) clusterConf.get("name");
+    final String burrowName = burrowCluster(clusterConf);
     final Set<String> bootstrapServersFromBurrow;
     try {
-      bootstrapServersFromBurrow = new HashSet<>(this.burrow.getClusterBootstrapServers(clusterName));
+      bootstrapServersFromBurrow = new HashSet<>(this.burrow.getClusterBootstrapServers(burrowName));
     } catch (IOException e) {
       this.metrics.burrowClusterDetailReadFailed.labels(metricsCluster(clusterConf)).inc();
       return Optional.of("failed to read cluster detail from Burrow: " + e.getMessage());
