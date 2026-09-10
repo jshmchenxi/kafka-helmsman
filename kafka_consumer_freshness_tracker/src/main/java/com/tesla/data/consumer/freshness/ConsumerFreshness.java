@@ -176,10 +176,6 @@ public class ConsumerFreshness {
     return (String) clusterConf.get("name");
   }
 
-  private String metricsCluster(Map<String, Object> clusterConf) {
-    return (String) clusterConf.get("name");
-  }
-
   private String metricsCluster(String burrowCluster) {
     return metricsClusterByBurrowName.getOrDefault(burrowCluster, burrowCluster);
   }
@@ -198,7 +194,7 @@ public class ConsumerFreshness {
     try {
       bootstrapServersFromBurrow = new HashSet<>(this.burrow.getClusterBootstrapServers(burrowName));
     } catch (IOException e) {
-      this.metrics.burrowClusterDetailReadFailed.labels(metricsCluster(clusterConf)).inc();
+      this.metrics.burrowClusterDetailReadFailed.labels((String) clusterConf.get("name")).inc();
       return Optional.of("failed to read cluster detail from Burrow: " + e.getMessage());
     }
 
